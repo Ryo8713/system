@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系館器材借用系統 / Equipment Borrowing System</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 500px; margin: auto; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; }
+        input, select, button { width: 100%; padding: 8px; box-sizing: border-box; }
+        button { background-color: #4CAF50; color: white; border: none; cursor: pointer; }
+        .tab-buttons { display: flex; gap: 10px; margin-bottom: 15px; }
+        .tab-buttons button { background-color: #e0e0e0; color: #333; }
+        .tab-buttons button.active { background-color: #4CAF50; color: white; }
+        .hidden { display: none; }
+        .suggestions { border: 1px solid #ccc; background: #fff; max-height: 160px; overflow-y: auto; }
+        .suggestions.hidden { display: none; }
+        .suggestion-item { padding: 8px; cursor: pointer; }
+        .suggestion-item:hover { background: #f0f0f0; }
+        .record-list { display: grid; gap: 10px; }
+        .record-card { border: 1px solid #ddd; border-radius: 10px; padding: 10px; background: #fafafa; display: grid; grid-template-columns: 20px 1fr; gap: 10px; align-items: start; }
+        .record-card input { margin-top: 4px; }
+        .record-meta { font-size: 13px; color: #444; line-height: 1.4; }
+        .record-title { font-weight: 600; margin-bottom: 4px; }
+        .item-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .item-card { border: 1px solid #ddd; border-radius: 10px; padding: 12px; background: #fafafa; cursor: pointer; }
+        .item-card input[type="checkbox"] { position: absolute; opacity: 0; pointer-events: none; }
+        .item-card span { display: block; font-size: 14px; }
+        .item-card input:checked + span { background: #e6f4ea; border-radius: 8px; padding: 6px; }
+        .item-card .other-input { margin-top: 8px; width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 6px; font-size: 12px; text-align: left; }
+        th { background: #f5f5f5; }
+        #message { margin-top: 15px; color: blue; }
+    </style>
+</head>
+<body>
+    <h2>器材借用系統 / Equipment Borrowing System</h2>
+    
+    <div class="tab-buttons">
+        <button id="borrowTab" class="active" onclick="switchMode('borrow')">借用 (Borrow)</button>
+        <button id="returnTab" onclick="switchMode('return')">歸還 (Return)</button>
+        <button id="overviewTab" onclick="switchMode('overview')">總覽 (Overview)</button>
+    </div>
+
+    <div id="borrowSection">
+        <div class="form-group">
+            <label>教室 (Classroom):</label>
+            <input type="text" id="classroom" placeholder="例如: 101 / e.g. 101">
+        </div>
+
+        <div class="form-group">
+            <label>學號/員工編號 (Student/Staff ID):</label>
+            <input type="text" id="borrowerId" placeholder="輸入學號或員工編號 / Student or Staff ID">
+            <div id="userSuggestions" class="suggestions hidden"></div>
+        </div>
+
+        <div class="form-group">
+            <label>姓名 (Name):</label>
+            <input type="text" id="borrowerName" placeholder="輸入姓名 / Name">
+        </div>
+
+        <div class="form-group">
+            <label>連絡電話 (Phone):</label>
+            <input type="tel" id="phone" placeholder="輸入連絡電話 / Phone">
+        </div>
+
+        <div class="form-group">
+            <label>選擇器材 (Available Items):</label>
+            <div id="itemList" class="item-grid"></div>
+        </div>
+
+
+        <div class="form-group">
+            <label>備註 (Note):</label>
+            <input type="text" id="note" placeholder="可選填 / Optional">
+        </div>
+
+        <button onclick="submitBorrow()">提交借用 (Submit Borrow)</button>
+    </div>
+
+    <div id="returnSection" class="hidden">
+        <div class="form-group">
+            <label>輸入學號/員工編號查詢未歸還紀錄 (Lookup by ID):</label>
+            <input type="text" id="returnBorrowerId" placeholder="輸入學號或員工編號 / Student or Staff ID">
+        </div>
+
+        <div class="form-group">
+            <button onclick="fetchOpenRecords()">查詢未歸還紀錄 (Find Open Records)</button>
+        </div>
+
+        <div class="form-group">
+            <label>未歸還紀錄 (可複選 / Multi-select):</label>
+            <div id="openRecords" class="record-list"></div>
+        </div>
+
+        <button onclick="submitReturn()">提交歸還 (Submit Return)</button>
+    </div>
+
+    <div id="overviewSection" class="hidden">
+        <div class="form-group">
+            <button onclick="fetchOverviewRecords()">重新載入總覽 (Reload Overview)</button>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>學號/員工編號 (ID)</th>
+                    <th>教室 (Classroom)</th>
+                    <th>器材 (Items)</th>
+                    <th>借用時間 (Borrowed)</th>
+                    <th>歸還時間 (Returned)</th>
+                    <th>備註 (Note)</th>
+                </tr>
+            </thead>
+            <tbody id="overviewTable"></tbody>
+        </table>
+    </div>
+    <div id="message"></div>
+
+    <script>
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbxaRR-acYIle82Ryu1GpDX-DIRAF762xg8dJK0QhDyanXtumJv4-Z21r3Ipky1Zn1sb/exec"; // 👈 貼上你的 GAS 網址
+
+        let usersCache = [];
+        let itemsCache = [];
+        window.onload = function() {
+            fetchAvailableItems();
+            fetchUsers();
+            fetchOverviewRecords();
+            const borrowerIdInput = document.getElementById('borrowerId');
+            borrowerIdInput.addEventListener('input', handleBorrowerSearch);
+            borrowerIdInput.addEventListener('blur', () => {
+                setTimeout(() => hideSuggestions(), 150);
+            });
+        };
+
+        async function fetchAvailableItems() {
+            try {
+                const response = await fetch(`${GAS_URL}?action=getAvailableItems`);
+                const items = await response.json();
+                itemsCache = Array.isArray(items) ? items : [];
+                renderItemCheckboxes();
+            } catch (error) {
+                console.error("載入失敗:", error);
+                document.getElementById('message').innerText = "無法載入器材清單，請檢查 GAS 部署權限。 / Unable to load items. Check GAS deployment.";
+            }
+        }
+
+        function renderItemCheckboxes() {
+            const container = document.getElementById('itemList');
+            container.innerHTML = '';
+
+            if (!itemsCache.length) {
+                container.innerHTML = '<span>目前沒有可借用器材。 / No available items.</span>';
+                return;
+            }
+
+            itemsCache.forEach(item => {
+                const card = document.createElement('label');
+                card.className = 'item-card';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.name = 'borrowItem';
+                checkbox.value = item.id;
+
+                const label = document.createElement('span');
+                label.textContent = item.name;
+
+                card.appendChild(checkbox);
+                card.appendChild(label);
+                container.appendChild(card);
+            });
+
+            const otherCard = document.createElement('label');
+            otherCard.className = 'item-card';
+
+            const otherCheckbox = document.createElement('input');
+            otherCheckbox.type = 'checkbox';
+            otherCheckbox.id = 'otherItemToggle';
+
+            const otherLabel = document.createElement('span');
+            otherLabel.textContent = '其他器材 (Other)';
+
+            const otherInput = document.createElement('input');
+            otherInput.type = 'text';
+            otherInput.id = 'otherItem';
+            otherInput.placeholder = '例如: 轉接頭、延長線 / e.g. Adapter, Extension';
+            otherInput.className = 'other-input';
+            otherInput.classList.add('hidden');
+
+            otherCheckbox.addEventListener('change', () => {
+                if (otherCheckbox.checked) {
+                    otherInput.classList.remove('hidden');
+                    otherInput.focus();
+                } else {
+                    otherInput.classList.add('hidden');
+                    otherInput.value = '';
+                }
+            });
+
+            otherCard.appendChild(otherCheckbox);
+            otherCard.appendChild(otherLabel);
+            otherCard.appendChild(otherInput);
+            container.appendChild(otherCard);
+        }
+
+        async function fetchUsers() {
+            try {
+                const response = await fetch(`${GAS_URL}?action=getUsers`);
+                const users = await response.json();
+                usersCache = Array.isArray(users) ? users : [];
+            } catch (error) {
+                console.error("載入使用者失敗:", error);
+                usersCache = [];
+            }
+        }
+
+        function handleBorrowerSearch(e) {
+            const query = e.target.value.trim();
+            if (!query) {
+                hideSuggestions();
+                return;
+            }
+
+            const results = usersCache
+                .filter(user => String(user.borrowerId || "").includes(query))
+                .slice(0, 8);
+
+            renderSuggestions(results);
+        }
+
+        function renderSuggestions(results) {
+            const box = document.getElementById('userSuggestions');
+            if (!results.length) {
+                hideSuggestions();
+                return;
+            }
+
+            box.innerHTML = '';
+            results.forEach(user => {
+                const item = document.createElement('div');
+                item.className = 'suggestion-item';
+                item.textContent = `${user.borrowerId || ''}`;
+                item.addEventListener('click', () => applyUser(user));
+                box.appendChild(item);
+            });
+            box.classList.remove('hidden');
+        }
+
+        function hideSuggestions() {
+            const box = document.getElementById('userSuggestions');
+            box.classList.add('hidden');
+            box.innerHTML = '';
+        }
+
+        function applyUser(user) {
+            document.getElementById('borrowerName').value = user.borrowerName || '';
+            document.getElementById('borrowerId').value = user.borrowerId || '';
+            document.getElementById('phone').value = user.phone || '';
+            if (user.classroom) {
+                document.getElementById('classroom').value = user.classroom || '';
+            }
+            hideSuggestions();
+        }
+
+        function switchMode(mode) {
+            const borrowTab = document.getElementById('borrowTab');
+            const returnTab = document.getElementById('returnTab');
+            const overviewTab = document.getElementById('overviewTab');
+            const borrowSection = document.getElementById('borrowSection');
+            const returnSection = document.getElementById('returnSection');
+            const overviewSection = document.getElementById('overviewSection');
+
+            if (mode === 'borrow') {
+                borrowTab.classList.add('active');
+                returnTab.classList.remove('active');
+                overviewTab.classList.remove('active');
+                borrowSection.classList.remove('hidden');
+                returnSection.classList.add('hidden');
+                overviewSection.classList.add('hidden');
+                document.getElementById('message').innerText = "";
+            } else if (mode === 'return') {
+                returnTab.classList.add('active');
+                borrowTab.classList.remove('active');
+                overviewTab.classList.remove('active');
+                returnSection.classList.remove('hidden');
+                borrowSection.classList.add('hidden');
+                overviewSection.classList.add('hidden');
+                document.getElementById('message').innerText = "";
+            } else {
+                overviewTab.classList.add('active');
+                borrowTab.classList.remove('active');
+                returnTab.classList.remove('active');
+                overviewSection.classList.remove('hidden');
+                borrowSection.classList.add('hidden');
+                returnSection.classList.add('hidden');
+                document.getElementById('message').innerText = "";
+            }
+        }
+
+        async function submitBorrow() {
+            const borrowerId = document.getElementById('borrowerId').value.trim();
+            const borrowerName = document.getElementById('borrowerName').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+            const classroom = document.getElementById('classroom').value.trim();
+            const note = document.getElementById('note').value.trim();
+            const otherItem = document.getElementById('otherItem').value.trim();
+            const otherItemToggle = document.getElementById('otherItemToggle').checked;
+            const items = Array.from(document.querySelectorAll('input[name="borrowItem"]:checked'))
+                .map(input => input.value);
+
+            if (otherItemToggle && otherItem) {
+                parseOtherItems(otherItem).forEach(item => items.push(item));
+            }
+
+            if (!borrowerId || !borrowerName || !phone || !classroom || items.length === 0) {
+                alert("請填寫學號/員工編號、姓名、連絡電話、教室，並至少選擇一項器材！ / Please complete ID, name, phone, classroom, and select items.");
+                return;
+            }
+
+            document.getElementById('message').innerText = "處理中... / Processing...";
+
+            try {
+                const response = await fetch(GAS_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'borrow', borrowerId, borrowerName, phone, classroom, items, note })
+                });
+                const result = await response.json();
+
+                if (result.result === 'success') {
+                    alert("借用申請已送出！ / Borrow request submitted.");
+                    document.getElementById('message').innerText = '';
+                    fetchAvailableItems();
+                    fetchUsers();
+                    fetchOverviewRecords();
+                    renderItemCheckboxes();
+                    resetBorrowForm();
+                } else {
+                    document.getElementById('message').innerText = result.message || "提交失敗，請檢查網路。 / Submission failed.";
+                }
+            } catch (error) {
+                document.getElementById('message').innerText = "提交失敗，請檢查網路。 / Submission failed.";
+            }
+        }
+
+        function parseOtherItems(rawValue) {
+            return rawValue
+                .split(/[,，、]/)
+                .map(item => item.trim())
+                .filter(Boolean);
+        }
+
+        function resetBorrowForm() {
+            document.getElementById('classroom').value = '';
+            document.getElementById('borrowerId').value = '';
+            document.getElementById('borrowerName').value = '';
+            document.getElementById('phone').value = '';
+            document.getElementById('note').value = '';
+
+            const otherToggle = document.getElementById('otherItemToggle');
+            const otherInput = document.getElementById('otherItem');
+            if (otherToggle) {
+                otherToggle.checked = false;
+            }
+            if (otherInput) {
+                otherInput.value = '';
+                otherInput.classList.add('hidden');
+            }
+
+            const selectedItems = document.querySelectorAll('input[name="borrowItem"]:checked');
+            selectedItems.forEach(input => {
+                input.checked = false;
+            });
+        }
+
+        // 6. 提交歸還表單 (POST)
+        async function submitReturn() {
+            const recordIds = Array.from(document.querySelectorAll('input[name="openRecord"]:checked'))
+                .map(input => input.value);
+
+            if (recordIds.length === 0) {
+                alert("請選擇至少一筆未歸還紀錄！ / Please select at least one record.");
+                return;
+            }
+
+            document.getElementById('message').innerText = "提交中... / Submitting...";
+
+            try {
+                const response = await fetch(GAS_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'return', recordIds })
+                });
+                const result = await response.json();
+
+                if (result.result === 'success') {
+                    document.getElementById('message').innerText = "歸還成功！ / Return completed.";
+                    fetchAvailableItems();
+                    fetchOpenRecords();
+                    fetchOverviewRecords();
+                }
+            } catch (error) {
+                document.getElementById('message').innerText = "提交失敗，請查看 Console。 / Submission failed.";
+            }
+        }
+
+        async function fetchOpenRecords() {
+            const borrowerId = document.getElementById('returnBorrowerId').value.trim();
+            const container = document.getElementById('openRecords');
+            container.innerHTML = '';
+
+            if (!borrowerId) {
+                container.innerHTML = '<span>請先輸入學號/員工編號。 / Enter an ID first.</span>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${GAS_URL}?action=getOpenRecordsByBorrower&borrowerId=${encodeURIComponent(borrowerId)}`);
+                const records = await response.json();
+                if (!Array.isArray(records) || records.length === 0) {
+                    container.innerHTML = '<span>沒有未歸還紀錄。 / No open records.</span>';
+                    return;
+                }
+
+                records.forEach(record => {
+                    const card = document.createElement('label');
+                    card.className = 'record-card';
+
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.name = 'openRecord';
+                    checkbox.value = record.recordId;
+
+                    const meta = document.createElement('div');
+                    meta.className = 'record-meta';
+                    meta.innerHTML = `
+                        <div class="record-title">${formatItems(record.items)}</div>
+                        <div>借用時間 (Borrowed): ${formatDateTime(record.borrowTime)}</div>
+                        <div>教室 (Classroom): ${record.classroom || ''}</div>
+                    `;
+
+                    card.appendChild(checkbox);
+                    card.appendChild(meta);
+                    container.appendChild(card);
+                });
+            } catch (error) {
+                container.innerHTML = '<span>載入失敗，請稍後再試。 / Failed to load.</span>';
+            }
+        }
+
+        // 8. 總覽 (GET)
+        async function fetchOverviewRecords() {
+            const table = document.getElementById('overviewTable');
+            table.innerHTML = '';
+            try {
+                const response = await fetch(`${GAS_URL}?action=getAllRecords`);
+                const records = await response.json();
+                if (!Array.isArray(records) || records.length === 0) {
+                    table.innerHTML = '<tr><td colspan="6">沒有紀錄。 / No records.</td></tr>';
+                    return;
+                }
+
+                records.forEach(record => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${record.borrowerId || ''}</td>
+                        <td>${record.classroom || ''}</td>
+                        <td>${formatItems(record.items)}</td>
+                        <td>${formatDateTime(record.borrowTime)}</td>
+                        <td>${formatDateTime(record.returnTime)}</td>
+                        <td>${record.note || ''}</td>
+                    `;
+                    table.appendChild(row);
+                });
+            } catch (error) {
+                table.innerHTML = '<tr><td colspan="6">載入失敗，請稍後再試。 / Failed to load.</td></tr>';
+            }
+        }
+
+        function formatItems(itemsValue) {
+            if (!itemsValue) {
+                return '';
+            }
+
+            if (Array.isArray(itemsValue)) {
+                return itemsValue.join('、');
+            }
+
+            if (typeof itemsValue === 'string') {
+                try {
+                    const parsed = JSON.parse(itemsValue);
+                    if (Array.isArray(parsed)) {
+                        return parsed.join('、');
+                    }
+                } catch (error) {
+                    return itemsValue;
+                }
+            }
+
+            return String(itemsValue);
+        }
+
+        function formatDateTime(value) {
+            if (!value) {
+                return '';
+            }
+
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) {
+                return String(value);
+            }
+
+            return date.toLocaleString('zh-TW', {
+                month: 'numeric',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            });
+        }
+    </script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>系館器材借用系統 / Equipment Borrowing System</title>
+    <title>教育館器材借用系統</title>
     <style>
         :root {
             --bg: #f6f3ef;
@@ -21,11 +21,80 @@
             background: radial-gradient(1200px 400px at 10% 0%, #fff8ef 0%, transparent 60%), var(--bg);
             color: var(--ink);
         }
+
+        .form-group { margin-bottom: 15px; }
+
+        input, button {
+            width: 100%;
+            padding: 12px;
+            box-sizing: border-box;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+        }
+
+        button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        button:hover { filter: brightness(0.95); }
+
+        .page-title {
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        #message {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+            overflow-y: auto;
+            height: calc(100vh - 260px);
+            min-height: 320px;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: #fff;
+        }
+
+        table {
+            width: 100%;
+            min-width: 980px;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            border-bottom: 1px solid var(--border);
+            padding: 10px;
+            font-size: 13px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #fdf6ee;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        .record-table input { min-width: 120px; }
+        .checkbox-cell { text-align: center; }
+        .auto-text { color: var(--muted); font-size: 12px; text-align: center; }
+
         .chip-group {
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
-            min-width: 160px; /* 確保在表格內有足夠寬度 */
+            min-width: 160px;
             padding: 5px;
         }
 
@@ -39,7 +108,7 @@
             transition: all 0.2s ease;
             user-select: none;
             text-align: center;
-            flex: 1 0 30%; /* 讓它在格子內整齊排列 */
+            flex: 1 0 30%;
         }
 
         .chip:hover {
@@ -53,34 +122,44 @@
             border-color: var(--accent);
             box-shadow: 0 2px 4px rgba(47, 111, 78, 0.2);
         }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; }
-        input, select, button { width: 100%; padding: 12px; box-sizing: border-box; border-radius: 10px; border: 1px solid var(--border); }
-        .record-table input { min-width: 120px; }
-        button { background-color: var(--accent); color: white; border: none; cursor: pointer; font-weight: 600; }
-        button:hover { filter: brightness(0.95); }
-        .hidden { display: none; }
-        .suggestions { border: 1px solid var(--border); background: #fff; max-height: 160px; overflow-y: auto; }
+
+
+        .item-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .item-input { margin-top: 6px; }
+
+        .toggle-btn {
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: #fff;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--ink);
+        }
+
+        .toggle-btn.active { background: var(--accent); color: #fff; }
+
+        .suggestions {
+            border: 1px solid var(--border);
+            background: #fff;
+            max-height: 160px;
+            overflow-y: auto;
+        }
+
         .suggestions.hidden { display: none; }
         .suggestion-item { padding: 8px; cursor: pointer; }
         .suggestion-item:hover { background: #f0f0f0; }
-        .table-wrap { overflow-x: auto; overflow-y: auto; height: calc(100vh - 260px); min-height: 320px; border: 1px solid var(--border); border-radius: 14px; background: #fff; }
-        table { width: 100%; min-width: 980px; border-collapse: collapse; }
-        th, td { border-bottom: 1px solid var(--border); padding: 10px; font-size: 13px; text-align: left; vertical-align: top; }
-        th { background: #fdf6ee; position: sticky; top: 0; z-index: 2; }
-        .checkbox-cell { text-align: center; }
-        .toggle-group { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-        .item-group { display: flex; flex-wrap: wrap; gap: 8px; }
-        .item-input { margin-top: 6px; }
-        .toggle-btn { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: #fff; cursor: pointer; font-weight: 600; color: var(--ink); }
-        .toggle-btn.active { background: var(--accent); color: #fff; }
-        .laptop-select { min-width: 140px; height: 120px; padding: 8px; }
-        .auto-text { color: var(--muted); font-size: 12px; text-align: center; }
-        #message { margin-top: 15px; color: var(--accent); }
+
+        .hidden { display: none; }
     </style>
 </head>
 <body>
-    <h2>器材借用系統 / Equipment Borrowing System</h2>
+    <h2 class="page-title">教育館器材借用系統 <span id="message"></span></h2>
 
     <div class="form-group table-wrap">
         <table class="record-table">
@@ -110,7 +189,7 @@
                             <button type="button" class="toggle-btn" id="itemPointer">投影筆<br>Pointer</button>
                             <button type="button" class="toggle-btn" id="itemOther">其他<br>Other</button>
                         </div>
-                        <input type="text" id="otherItem" class="item-input hidden">
+                        <input type="text" id="otherItem" class="item-input hidden" placeholder="ex:延長線、投影筆">
                     </td>
                     <td>
                         <input type="text" id="borrowerId">
@@ -129,28 +208,51 @@
     <div class="form-group">
         <button onclick="fetchOverviewRecords()">重新載入總覽 (Reload Overview)</button>
     </div>
-    <div id="message"></div>
 
     <script>
         const GAS_URL = "https://script.google.com/macros/s/AKfycbxaRR-acYIle82Ryu1GpDX-DIRAF762xg8dJK0QhDyanXtumJv4-Z21r3Ipky1Zn1sb/exec"; // 👈 貼上你的 GAS 網址
 
+        const DOM = {};
         let usersCache = [];
         let usersById = {};
 
-        window.onload = function() {
+        window.onload = init;
+
+        function init() {
+            cacheDom();
             renderPcOptions();
             wireItemToggles();
             fetchUsers().then(fetchOverviewRecords);
-            const borrowerIdInput = document.getElementById('borrowerId');
-            borrowerIdInput.addEventListener('input', handleBorrowerSearch);
-            borrowerIdInput.addEventListener('blur', () => {
+            wireBorrowerSearch();
+        }
+
+        function cacheDom() {
+            DOM.classroom = document.getElementById('classroom');
+            DOM.pcGroup = document.getElementById('pcGroup');
+            DOM.selectedPcs = document.getElementById('selectedPcs');
+            DOM.itemAdapter = document.getElementById('itemAdapter');
+            DOM.itemPointer = document.getElementById('itemPointer');
+            DOM.itemOther = document.getElementById('itemOther');
+            DOM.otherItem = document.getElementById('otherItem');
+            DOM.borrowerId = document.getElementById('borrowerId');
+            DOM.borrowerName = document.getElementById('borrowerName');
+            DOM.phone = document.getElementById('phone');
+            DOM.userSuggestions = document.getElementById('userSuggestions');
+            DOM.message = document.getElementById('message');
+            DOM.recordsTable = document.getElementById('recordsTable');
+            DOM.inputRow = document.getElementById('inputRow');
+        }
+
+        function wireBorrowerSearch() {
+            DOM.borrowerId.addEventListener('input', handleBorrowerSearch);
+            DOM.borrowerId.addEventListener('blur', () => {
                 setTimeout(() => hideSuggestions(), 150);
             });
-        };
+        }
 
         function renderPcOptions() {
-            const container = document.getElementById('pcGroup');
-            const hiddenInput = document.getElementById('selectedPcs');
+            const container = DOM.pcGroup;
+            const hiddenInput = DOM.selectedPcs;
             container.innerHTML = '';
             let selected = [];
 
@@ -173,17 +275,16 @@
         }
 
         function wireItemToggles() {
-            const adapterBtn = document.getElementById('itemAdapter');
-            const pointerBtn = document.getElementById('itemPointer');
-            const otherBtn = document.getElementById('itemOther');
-            const otherInput = document.getElementById('otherItem');
-
-            adapterBtn.addEventListener('click', () => adapterBtn.classList.toggle('active'));
-            pointerBtn.addEventListener('click', () => pointerBtn.classList.toggle('active'));
-            otherBtn.addEventListener('click', () => {
-                otherBtn.classList.toggle('active');
-                otherInput.classList.toggle('hidden', !otherBtn.classList.contains('active'));
+            DOM.itemAdapter.addEventListener('click', () => DOM.itemAdapter.classList.toggle('active'));
+            DOM.itemPointer.addEventListener('click', () => DOM.itemPointer.classList.toggle('active'));
+            DOM.itemOther.addEventListener('click', () => {
+                DOM.itemOther.classList.toggle('active');
+                updateOtherInputVisibility();
             });
+        }
+
+        function updateOtherInputVisibility() {
+            DOM.otherItem.classList.toggle('hidden', !DOM.itemOther.classList.contains('active'));
         }
 
         async function fetchUsers() {
@@ -219,7 +320,7 @@
         }
 
         function renderSuggestions(results) {
-            const box = document.getElementById('userSuggestions');
+            const box = DOM.userSuggestions;
             if (!results.length) {
                 hideSuggestions();
                 return;
@@ -237,49 +338,34 @@
         }
 
         function hideSuggestions() {
-            const box = document.getElementById('userSuggestions');
+            const box = DOM.userSuggestions;
             box.classList.add('hidden');
             box.innerHTML = '';
         }
 
         function applyUser(user) {
-            document.getElementById('borrowerName').value = user.borrowerName || '';
-            document.getElementById('borrowerId').value = user.borrowerId || '';
-            document.getElementById('phone').value = user.phone || '';
+            DOM.borrowerName.value = user.borrowerName || '';
+            DOM.borrowerId.value = user.borrowerId || '';
+            DOM.phone.value = user.phone || '';
             if (user.classroom) {
-                document.getElementById('classroom').value = user.classroom || '';
+                DOM.classroom.value = user.classroom || '';
             }
             hideSuggestions();
         }
 
         async function submitBorrow() {
-            const borrowerId = document.getElementById('borrowerId').value.trim();
-            const borrowerName = document.getElementById('borrowerName').value.trim();
-            const phone = document.getElementById('phone').value.trim();
-            const classroom = document.getElementById('classroom').value.trim();
-            const items = [];
-            const selectedPcs = document.getElementById('selectedPcs').value;
-            const pcs = selectedPcs ? JSON.parse(selectedPcs) : [];
-            pcs.forEach(pc => items.push(pc));
-            if (document.getElementById('itemAdapter').classList.contains('active')) {
-                items.push('轉接線');
-            }
-            if (document.getElementById('itemPointer').classList.contains('active')) {
-                items.push('投影筆');
-            }
-            if (document.getElementById('itemOther').classList.contains('active')) {
-                const otherItem = document.getElementById('otherItem').value.trim();
-                if (otherItem) {
-                    parseOtherItems(otherItem).forEach(item => items.push(item));
-                }
-            }
+            const borrowerId = DOM.borrowerId.value.trim();
+            const borrowerName = DOM.borrowerName.value.trim();
+            const phone = DOM.phone.value.trim();
+            const classroom = DOM.classroom.value.trim();
+            const items = buildBorrowItems();
 
             if (!borrowerId || !borrowerName || !phone || !classroom || items.length === 0) {
-                alert("請填寫學號/員工編號、姓名、連絡電話、教室，並至少選擇一項器材！ / Please complete ID, name, phone, classroom, and select items.");
+                alert("資料填寫不完整，請檢查。 / Please complete all required fields.");
                 return;
             }
 
-            document.getElementById('message').innerText = "處理中... / Processing...";
+            setMessage("處理中... / Processing...");
 
             try {
                 const response = await fetch(GAS_URL, {
@@ -289,17 +375,39 @@
                 const result = await response.json();
 
                 if (result.result === 'success') {
-                    alert("提交成功/ submit successfully");
-                    document.getElementById('message').innerText = '';
+                    alert("提交成功！ / Submission successful!");
+                    clearMessage();
                     await fetchUsers();
                     fetchOverviewRecords();
                     resetBorrowForm();
                 } else {
-                    document.getElementById('message').innerText = result.message || "提交失敗，請檢查網路。 / Submission failed.";
+                    setMessage(result.message || "提交失敗。 / Submission failed.");
                 }
             } catch (error) {
-                document.getElementById('message').innerText = "提交失敗，請檢查網路。 / Submission failed.";
+                setMessage("提交失敗。 / Submission failed.");
             }
+        }
+
+        function buildBorrowItems() {
+            const items = [];
+            const selectedPcs = DOM.selectedPcs.value;
+            const pcs = selectedPcs ? JSON.parse(selectedPcs) : [];
+            pcs.forEach(pc => items.push(pc));
+
+            if (DOM.itemAdapter.classList.contains('active')) {
+                items.push('轉接線');
+            }
+            if (DOM.itemPointer.classList.contains('active')) {
+                items.push('投影筆');
+            }
+            if (DOM.itemOther.classList.contains('active')) {
+                const otherItem = DOM.otherItem.value.trim();
+                if (otherItem) {
+                    parseOtherItems(otherItem).forEach(item => items.push(item));
+                }
+            }
+
+            return items;
         }
 
         function parseOtherItems(rawValue) {
@@ -310,24 +418,22 @@
         }
 
         function resetBorrowForm() {
-            document.getElementById('classroom').value = '';
-            document.getElementById('borrowerId').value = '';
-            document.getElementById('borrowerName').value = '';
-            document.getElementById('phone').value = '';
-            const otherInput = document.getElementById('otherItem');
-            otherInput.value = '';
-            otherInput.classList.add('hidden');
-            document.getElementById('itemAdapter').classList.remove('active');
-            document.getElementById('itemPointer').classList.remove('active');
-            document.getElementById('itemOther').classList.remove('active');
-            document.getElementById('selectedPcs').value = '';
+            DOM.classroom.value = '';
+            DOM.borrowerId.value = '';
+            DOM.borrowerName.value = '';
+            DOM.phone.value = '';
+            DOM.otherItem.value = '';
+            DOM.otherItem.classList.add('hidden');
+            DOM.itemAdapter.classList.remove('active');
+            DOM.itemPointer.classList.remove('active');
+            DOM.itemOther.classList.remove('active');
+            DOM.selectedPcs.value = '';
             document.querySelectorAll('#pcGroup .chip').forEach(chip => chip.classList.remove('active'));
         }
 
-        // 8. 總覽 (GET)
         async function fetchOverviewRecords() {
-            const table = document.getElementById('recordsTable');
-            const inputRow = document.getElementById('inputRow');
+            const table = DOM.recordsTable;
+            const inputRow = DOM.inputRow;
             table.innerHTML = '';
             table.appendChild(inputRow);
             try {
@@ -370,11 +476,6 @@
                 row.innerHTML = '<td colspan="9">載入失敗，請稍後再試。 / Failed to load.</td>';
                 table.appendChild(row);
             }
-        }
-
-        function formatItems(itemsValue) {
-            const items = getItemsArray(itemsValue);
-            return items.join('、');
         }
 
         function formatDateTime(value) {
@@ -458,7 +559,7 @@
 
         async function returnRecord(recordId, button) {
             button.disabled = true;
-            document.getElementById('message').innerText = "提交中... / Submitting...";
+            setMessage("提交中... / Submitting...");
             try {
                 const response = await fetch(GAS_URL, {
                     method: 'POST',
@@ -466,17 +567,25 @@
                 });
                 const result = await response.json();
                 if (result.result === 'success') {
-                    document.getElementById('message').innerText = '';
+                    clearMessage();
                     alert('歸還成功 / Return completed');
                     fetchOverviewRecords();
                 } else {
                     button.disabled = false;
-                    document.getElementById('message').innerText = result.message || "提交失敗，請檢查網路。 / Submission failed.";
+                    setMessage(result.message || "提交失敗。 / Submission failed.");
                 }
             } catch (error) {
                 button.disabled = false;
-                document.getElementById('message').innerText = "提交失敗，請檢查網路。 / Submission failed.";
+                setMessage("提交失敗。 / Submission failed.");
             }
+        }
+
+        function setMessage(text) {
+            DOM.message.textContent = text;
+        }
+
+        function clearMessage() {
+            DOM.message.textContent = '';
         }
     </script>
 </body>

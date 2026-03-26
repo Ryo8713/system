@@ -462,8 +462,8 @@
                     row.appendChild(createTextCell(record.classroom || ''));
                     row.appendChild(createTextCell(getLaptopItems(itemsArray).join('、')));
                     row.appendChild(createTextCell(getOtherItems(itemsArray).join('、')));
-                    row.appendChild(createTextCell(user.borrowerName || ''));
                     row.appendChild(createTextCell(record.borrowerId || ''));
+                    row.appendChild(createTextCell(user.borrowerName || ''));
                     row.appendChild(createTextCell(user.phone || ''));
                     row.appendChild(createTextCell(formatDateTime(record.borrowTime), 'auto-text'));
 

@@ -70,8 +70,10 @@
         th { background: #fdf6ee; position: sticky; top: 0; z-index: 2; }
         #inputRow td { position: sticky; top: 46px; background: #fff; z-index: 1; }
         .checkbox-cell { text-align: center; }
-        .toggle-group { display: flex; gap: 8px; justify-content: center; }
-        .toggle-btn { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: #fff; cursor: pointer; font-weight: 600; }
+        .toggle-group { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+        .item-group { display: flex; flex-wrap: wrap; gap: 8px; }
+        .item-input { margin-top: 6px; }
+        .toggle-btn { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: #fff; cursor: pointer; font-weight: 600; color: var(--ink); }
         .toggle-btn.active { background: var(--accent); color: #fff; }
         .laptop-select { min-width: 140px; height: 120px; padding: 8px; }
         .auto-text { color: var(--muted); font-size: 12px; text-align: center; }
@@ -86,45 +88,38 @@
             <thead>
                 <tr>
                     <th>教室<br>Classroom</th>
-                    <th>筆電<br>Laptop</th>
-                    <th>轉接線<br>Adapter</th>
-                    <th>投影筆<br>Pointer</th>
-                    <th>其他<br>Other</th>
-                    <th>姓名<br>Name</th>
+                    <th>筆電<br>Laptop (PC1-13)</th>
+                    <th>其他器材<br>Other Items</th>
                     <th>學號/員工編號<br>ID number</th>
+                    <th>姓名<br>Name</th>
                     <th>連絡電話/分機<br>Contact number</th>
                     <th>借用時間(自動)<br>Borrowing time(AUTO)</th>
-                    <th>已歸還<br>Returned</th>
                     <th>歸還時間(自動)<br>Return time(AUTO)</th>
                     <th>操作<br>Action</th>
                 </tr>
             </thead>
             <tbody id="recordsTable">
                 <tr id="inputRow">
-                    <td><input type="text" id="classroom" placeholder="例如: 101 / e.g. 101"></td>
+                    <td><input type="text" id="classroom"></td>
                     <td>
-                        <div id="laptopContainer" class="chip-group"></div>
-                        <input type="hidden" id="selectedLaptops"> 
+                        <div id="pcGroup" class="chip-group"></div>
+                        <input type="hidden" id="selectedPcs">
                     </td>
-                    <td class="checkbox-cell">
-                        <div class="toggle-group">
+                    <td>
+                        <div class="item-group">
                             <button type="button" class="toggle-btn" id="itemAdapter">轉接線<br>Adapter</button>
-                        </div>
-                    </td>
-                    <td class="checkbox-cell">
-                        <div class="toggle-group">
                             <button type="button" class="toggle-btn" id="itemPointer">投影筆<br>Pointer</button>
+                            <button type="button" class="toggle-btn" id="itemOther">其他<br>Other</button>
                         </div>
+                        <input type="text" id="otherItem" class="item-input hidden">
                     </td>
-                    <td><input type="text" id="otherItem" placeholder="例如: 轉接頭 / e.g. Adapter"></td>
-                    <td><input type="text" id="borrowerName" placeholder="姓名 / Name"></td>
                     <td>
-                        <input type="text" id="borrowerId" placeholder="學號或員工編號 / ID">
+                        <input type="text" id="borrowerId">
                         <div id="userSuggestions" class="suggestions hidden"></div>
                     </td>
-                    <td><input type="tel" id="phone" placeholder="電話或分機 / Phone"></td>
+                    <td><input type="text" id="borrowerName"></td>
+                    <td><input type="tel" id="phone"></td>
                     <td class="auto-text">AUTO</td>
-                    <td class="checkbox-cell"><input type="checkbox" disabled></td>
                     <td class="auto-text">--</td>
                     <td><button onclick="submitBorrow()">提交借用<br>Submit Borrow</button></td>
                 </tr>
@@ -140,16 +135,11 @@
     <script>
         const GAS_URL = "https://script.google.com/macros/s/AKfycbxaRR-acYIle82Ryu1GpDX-DIRAF762xg8dJK0QhDyanXtumJv4-Z21r3Ipky1Zn1sb/exec"; // 👈 貼上你的 GAS 網址
 
-        const ITEM_LABELS = {
-            adapter: ['轉接線', 'Adapter'],
-            pointer: ['投影筆', 'Pointer']
-        };
-
         let usersCache = [];
         let usersById = {};
 
         window.onload = function() {
-            renderLaptopOptions();
+            renderPcOptions();
             wireItemToggles();
             fetchUsers().then(fetchOverviewRecords);
             const borrowerIdInput = document.getElementById('borrowerId');
@@ -159,27 +149,25 @@
             });
         };
 
-        function renderLaptopOptions() {
-            const container = document.getElementById('laptopContainer');
+        function renderPcOptions() {
+            const container = document.getElementById('pcGroup');
+            const hiddenInput = document.getElementById('selectedPcs');
             container.innerHTML = '';
-            const hiddenInput = document.getElementById('selectedLaptops');
-            let selectedLaptops = [];
+            let selected = [];
 
             for (let i = 1; i <= 13; i += 1) {
                 const chip = document.createElement('div');
-                const val = `PC${i}`;
+                const value = `PC${i}`;
                 chip.className = 'chip';
-                chip.textContent = val;
-
+                chip.textContent = value;
                 chip.addEventListener('click', () => {
                     chip.classList.toggle('active');
-                    if (selectedLaptops.includes(val)) {
-                        selectedLaptops = selectedLaptops.filter(item => item !== val);
+                    if (selected.includes(value)) {
+                        selected = selected.filter(item => item !== value);
                     } else {
-                        selectedLaptops.push(val);
+                        selected.push(value);
                     }
-                    // 更新隱藏的欄位值，提交時會用到
-                    hiddenInput.value = JSON.stringify(selectedLaptops);
+                    hiddenInput.value = JSON.stringify(selected);
                 });
                 container.appendChild(chip);
             }
@@ -188,8 +176,15 @@
         function wireItemToggles() {
             const adapterBtn = document.getElementById('itemAdapter');
             const pointerBtn = document.getElementById('itemPointer');
+            const otherBtn = document.getElementById('itemOther');
+            const otherInput = document.getElementById('otherItem');
+
             adapterBtn.addEventListener('click', () => adapterBtn.classList.toggle('active'));
             pointerBtn.addEventListener('click', () => pointerBtn.classList.toggle('active'));
+            otherBtn.addEventListener('click', () => {
+                otherBtn.classList.toggle('active');
+                otherInput.classList.toggle('hidden', !otherBtn.classList.contains('active'));
+            });
         }
 
         async function fetchUsers() {
@@ -263,20 +258,21 @@
             const borrowerName = document.getElementById('borrowerName').value.trim();
             const phone = document.getElementById('phone').value.trim();
             const classroom = document.getElementById('classroom').value.trim();
-            const otherItem = document.getElementById('otherItem').value.trim();
-            const hiddenValue = document.getElementById('selectedLaptops').value;
-            const laptops = hiddenValue ? JSON.parse(hiddenValue) : [];
             const items = [];
-            laptops.forEach(laptop => items.push(laptop));
-
+            const selectedPcs = document.getElementById('selectedPcs').value;
+            const pcs = selectedPcs ? JSON.parse(selectedPcs) : [];
+            pcs.forEach(pc => items.push(pc));
             if (document.getElementById('itemAdapter').classList.contains('active')) {
                 items.push('轉接線');
             }
             if (document.getElementById('itemPointer').classList.contains('active')) {
                 items.push('投影筆');
             }
-            if (otherItem) {
-                parseOtherItems(otherItem).forEach(item => items.push(item));
+            if (document.getElementById('itemOther').classList.contains('active')) {
+                const otherItem = document.getElementById('otherItem').value.trim();
+                if (otherItem) {
+                    parseOtherItems(otherItem).forEach(item => items.push(item));
+                }
             }
 
             if (!borrowerId || !borrowerName || !phone || !classroom || items.length === 0) {
@@ -294,7 +290,7 @@
                 const result = await response.json();
 
                 if (result.result === 'success') {
-                    alert("借用申請已送出！ / Borrow request submitted.");
+                    alert("提交成功/ submit successfully");
                     document.getElementById('message').innerText = '';
                     await fetchUsers();
                     fetchOverviewRecords();
@@ -319,11 +315,14 @@
             document.getElementById('borrowerId').value = '';
             document.getElementById('borrowerName').value = '';
             document.getElementById('phone').value = '';
-            document.getElementById('otherItem').value = '';
-            document.getElementById('selectedLaptops').value = '';
+            const otherInput = document.getElementById('otherItem');
+            otherInput.value = '';
+            otherInput.classList.add('hidden');
             document.getElementById('itemAdapter').classList.remove('active');
             document.getElementById('itemPointer').classList.remove('active');
-            document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+            document.getElementById('itemOther').classList.remove('active');
+            document.getElementById('selectedPcs').value = '';
+            document.querySelectorAll('#pcGroup .chip').forEach(chip => chip.classList.remove('active'));
         }
 
         // 8. 總覽 (GET)
@@ -337,7 +336,7 @@
                 const records = await response.json();
                 if (!Array.isArray(records) || records.length === 0) {
                     const row = document.createElement('tr');
-                    row.innerHTML = '<td colspan="12">沒有紀錄。 / No records.</td>';
+                    row.innerHTML = '<td colspan="9">沒有紀錄。 / No records.</td>';
                     table.appendChild(row);
                     return;
                 }
@@ -355,37 +354,21 @@
                     const row = document.createElement('tr');
                     const itemsArray = getItemsArray(record.items);
                     const user = usersById[String(record.borrowerId)] || {};
-                    const otherItems = getOtherItems(itemsArray).join('、');
-                    const laptopItems = getLaptopItems(itemsArray).join('、');
-
                     row.appendChild(createTextCell(record.classroom || ''));
-                    row.appendChild(createTextCell(laptopItems));
-                    row.appendChild(createTextCell(hasItem(itemsArray, ITEM_LABELS.adapter) ? '✓' : '', 'checkbox-cell'));
-                    row.appendChild(createTextCell(hasItem(itemsArray, ITEM_LABELS.pointer) ? '✓' : '', 'checkbox-cell'));
-                    row.appendChild(createTextCell(otherItems));
+                    row.appendChild(createTextCell(getLaptopItems(itemsArray).join('、')));
+                    row.appendChild(createTextCell(getOtherItems(itemsArray).join('、')));
                     row.appendChild(createTextCell(user.borrowerName || ''));
                     row.appendChild(createTextCell(record.borrowerId || ''));
                     row.appendChild(createTextCell(user.phone || ''));
                     row.appendChild(createTextCell(formatDateTime(record.borrowTime), 'auto-text'));
 
-                    const returnCheckbox = createCheckboxCell(Boolean(record.returnTime), Boolean(record.returnTime));
-                    if (!record.returnTime) {
-                        const input = returnCheckbox.querySelector('input');
-                        input.addEventListener('change', () => {
-                            if (input.checked) {
-                                returnRecord(record.recordId, input);
-                            }
-                        });
-                    }
-                    row.appendChild(returnCheckbox);
-
                     row.appendChild(createTextCell(formatDateTime(record.returnTime), 'auto-text'));
-                    row.appendChild(createTextCell('—', 'checkbox-cell'));
+                    row.appendChild(createActionCell(record));
                     table.appendChild(row);
                 });
             } catch (error) {
                 const row = document.createElement('tr');
-                row.innerHTML = '<td colspan="12">載入失敗，請稍後再試。 / Failed to load.</td>';
+                row.innerHTML = '<td colspan="9">載入失敗，請稍後再試。 / Failed to load.</td>';
                 table.appendChild(row);
             }
         }
@@ -437,21 +420,16 @@
             return [String(itemsValue).trim()].filter(Boolean);
         }
 
-        function hasItem(itemsArray, labels) {
-            return itemsArray.some(item => labels.includes(item));
-        }
-
-        function getOtherItems(itemsArray) {
-            const known = [...ITEM_LABELS.adapter, ...ITEM_LABELS.pointer];
-            return itemsArray.filter(item => !known.includes(item) && !isLaptopItem(item));
-        }
-
         function isLaptopItem(item) {
             return /^PC\d+$/i.test(item);
         }
 
         function getLaptopItems(itemsArray) {
             return itemsArray.filter(isLaptopItem);
+        }
+
+        function getOtherItems(itemsArray) {
+            return itemsArray.filter(item => !isLaptopItem(item));
         }
 
         function createTextCell(text, className) {
@@ -463,19 +441,24 @@
             return td;
         }
 
-        function createCheckboxCell(checked, disabled) {
+        function createActionCell(record) {
             const td = document.createElement('td');
             td.className = 'checkbox-cell';
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.checked = checked;
-            checkbox.disabled = disabled;
-            td.appendChild(checkbox);
+            if (record.returnTime) {
+                td.textContent = '已歸還 / Returned';
+                return td;
+            }
+
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = '歸還 / Return';
+            button.addEventListener('click', () => returnRecord(record.recordId, button));
+            td.appendChild(button);
             return td;
         }
 
-        async function returnRecord(recordId, checkbox) {
-            checkbox.disabled = true;
+        async function returnRecord(recordId, button) {
+            button.disabled = true;
             document.getElementById('message').innerText = "提交中... / Submitting...";
             try {
                 const response = await fetch(GAS_URL, {
@@ -484,16 +467,15 @@
                 });
                 const result = await response.json();
                 if (result.result === 'success') {
-                    document.getElementById('message').innerText = "歸還成功！ / Return completed.";
+                    document.getElementById('message').innerText = '';
+                    alert('歸還成功 / Return completed');
                     fetchOverviewRecords();
                 } else {
-                    checkbox.checked = false;
-                    checkbox.disabled = false;
+                    button.disabled = false;
                     document.getElementById('message').innerText = result.message || "提交失敗，請檢查網路。 / Submission failed.";
                 }
             } catch (error) {
-                checkbox.checked = false;
-                checkbox.disabled = false;
+                button.disabled = false;
                 document.getElementById('message').innerText = "提交失敗，請檢查網路。 / Submission failed.";
             }
         }

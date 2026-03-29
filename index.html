@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>教育館器材借用系統</title>
+    <title>教育館教室器材借用系統</title>
     <style>
         :root {
             --bg: #f6f3ef;
@@ -25,6 +25,7 @@
         }
 
         .form-group { margin-bottom: 15px; }
+        .button-group { display: grid; gap: 12px; }
 
         input, button {
             width: 100%;
@@ -77,8 +78,8 @@
             border-bottom: 1px solid var(--border);
             padding: 10px;
             font-size: 15px;
-            text-align: left;
-            vertical-align: top;
+            text-align: center;
+            vertical-align: middle;
         }
 
         th {
@@ -90,7 +91,9 @@
 
         .record-table input { min-width: 120px; }
         .checkbox-cell { text-align: center; }
-        .auto-text { color: var(--muted); font-size: 14px; text-align: center; }
+        .auto-text { color: var(--muted); font-size: 14px; text-align: center; white-space: nowrap; }
+        .record-row:nth-child(even) { background: #f4f2f2; }
+        .record-row:nth-child(odd) { background: #ffffff; }
 
         .chip-group {
             display: flex;
@@ -161,20 +164,20 @@
     </style>
 </head>
 <body>
-    <h2 class="page-title">教育館器材借用系統 <span id="message"></span></h2>
+    <h2 class="page-title">教育館教室器材借用系統 Classroom Borrowing System<span id="message"></span></h2>
 
     <div class="form-group table-wrap">
         <table class="record-table">
             <thead>
                 <tr>
                     <th>教室<br>Classroom</th>
-                    <th>筆電<br>Laptop (PC1-13)</th>
-                    <th>其他器材<br>Other Items</th>
+                    <th>筆電<br>Laptop</th>
+                    <th>其他器材<br>Other items</th>
                     <th>學號/員工編號<br>ID number</th>
                     <th>姓名<br>Name</th>
                     <th>連絡電話/分機<br>Contact number</th>
-                    <th>借用時間(自動)<br>Borrowing time(AUTO)</th>
-                    <th>歸還時間(自動)<br>Return time(AUTO)</th>
+                    <th>借用時間<br>(自動)<br>Borrowing time(AUTO)</th>
+                    <th>歸還時間<br>(自動)<br>Return time(AUTO)</th>
                     <th>操作<br>Action</th>
                 </tr>
             </thead>
@@ -191,7 +194,7 @@
                             <button type="button" class="toggle-btn" id="itemPointer">投影筆<br>Pointer</button>
                             <button type="button" class="toggle-btn" id="itemOther">其他<br>Other</button>
                         </div>
-                        <input type="text" id="otherItem" class="item-input hidden" placeholder="ex:延長線、投影筆">
+                        <input type="text" id="otherItem" class="item-input hidden" placeholder="e.g. 響鈴、麥克風">
                     </td>
                     <td>
                         <input type="text" id="borrowerId">
@@ -201,14 +204,15 @@
                     <td><input type="tel" id="phone"></td>
                     <td class="auto-text">AUTO</td>
                     <td class="auto-text">--</td>
-                    <td><button onclick="submitBorrow()">提交借用<br>Submit Borrow</button></td>
+                    <td><button onclick="submitBorrow()">送出<br>Send</button></td>
                 </tr>
             </tbody>
         </table>
     </div>
 
-    <div class="form-group">
+    <div class="form-group button-group">
         <button onclick="fetchOverviewRecords()">重新載入總覽 (Reload Overview)</button>
+        <button onclick="clearAllRecords()">清除所有紀錄 (Clear All Records)</button>
     </div>
 
     <script>
@@ -258,7 +262,7 @@
             container.innerHTML = '';
             let selected = [];
 
-            for (let i = 1; i <= 13; i += 1) {
+            for (let i = 1; i <= 12; i += 1) {
                 const chip = document.createElement('div');
                 const value = `PC${i}`;
                 chip.className = 'chip';
@@ -443,7 +447,7 @@
                 const records = await response.json();
                 if (!Array.isArray(records) || records.length === 0) {
                     const row = document.createElement('tr');
-                    row.innerHTML = '<td colspan="9">沒有紀錄。 / No records.</td>';
+                    row.innerHTML = '<td colspan="9">無借用紀錄 (No records)</td>';
                     table.appendChild(row);
                     return;
                 }
@@ -459,6 +463,7 @@
 
                 records.forEach(record => {
                     const row = document.createElement('tr');
+                    row.className = 'record-row';
                     const itemsArray = getItemsArray(record.items);
                     const user = usersById[String(record.borrowerId)] || {};
                     row.appendChild(createTextCell(record.classroom || ''));
@@ -477,6 +482,32 @@
                 const row = document.createElement('tr');
                 row.innerHTML = '<td colspan="9">載入失敗，請稍後再試。 / Failed to load.</td>';
                 table.appendChild(row);
+            }
+        }
+
+        async function clearAllRecords() {
+            const password = prompt('請輸入管理員密碼 / Enter admin password');
+            if (!password) {
+                return;
+            }
+
+            setMessage('清除中... / Clearing...');
+            try {
+                const response = await fetch(GAS_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'clearAll', password })
+                });
+                const result = await response.json();
+                if (result.result === 'success') {
+                    clearMessage();
+                    alert('已清除所有資料 / All data cleared');
+                    await fetchUsers();
+                    fetchOverviewRecords();
+                } else {
+                    setMessage(result.message || '清除失敗。 / Clear failed.');
+                }
+            } catch (error) {
+                setMessage('清除失敗。 / Clear failed.');
             }
         }
 
@@ -547,25 +578,43 @@
             const td = document.createElement('td');
             td.className = 'checkbox-cell';
             if (record.returnTime) {
-                td.textContent = '已歸還 / Returned';
+                td.textContent = '已歸還 Returned';
                 return td;
             }
 
             const button = document.createElement('button');
             button.type = 'button';
-            button.textContent = '歸還 / Return';
-            button.addEventListener('click', () => returnRecord(record.recordId, button));
+            button.textContent = '歸還 Return';
+            button.addEventListener('click', () => returnRecord(record, button));
             td.appendChild(button);
             return td;
         }
 
-        async function returnRecord(recordId, button) {
+        function buildReturnConfirmMessage(record) {
+            const itemsArray = getItemsArray(record.items);
+            const user = usersById[String(record.borrowerId)] || {};
+            const lines = [
+                "請問您是否確認歸還？",
+                `教室: ${record.classroom || ''}`,
+                `借用器材: ${itemsArray.join('、') || ''}`,
+                `學號/員工編號: ${record.borrowerId || ''}`,
+                `姓名: ${user.borrowerName || ''}`,
+                `電話: ${user.phone || ''}`,
+            ];
+            return lines.join("\n");
+        }
+
+        async function returnRecord(record, button) {
+            const confirmMessage = buildReturnConfirmMessage(record);
+            if (!confirm(confirmMessage)) {
+                return;
+            }
             button.disabled = true;
             setMessage("提交中... / Submitting...");
             try {
                 const response = await fetch(GAS_URL, {
                     method: 'POST',
-                    body: JSON.stringify({ action: 'return', recordIds: [recordId] })
+                    body: JSON.stringify({ action: 'return', recordIds: [record.recordId] })
                 });
                 const result = await response.json();
                 if (result.result === 'success') {

@@ -18,7 +18,8 @@
             font-size: 16px;
             font-weight: 600;
             padding: 20px;
-            max-width: 980px;
+            max-width: 1200px;
+            width: 100%;
             margin: auto;
             background: radial-gradient(1200px 400px at 10% 0%, #fff8ef 0%, transparent 60%), var(--bg);
             color: var(--ink);
@@ -69,8 +70,8 @@
 
         table {
             width: 100%;
-            min-width: 980px;
             border-collapse: collapse;
+            table-layout: fixed;
         }
 
         th,
@@ -80,6 +81,7 @@
             font-size: 15px;
             text-align: center;
             vertical-align: middle;
+            word-break: break-word;
         }
 
         th {
@@ -161,6 +163,42 @@
         .suggestion-item:hover { background: #f0f0f0; }
 
         .hidden { display: none; }
+
+        @media (max-width: 1024px) {
+            body {
+                padding: 12px;
+            }
+
+            .table-wrap {
+                height: calc(100vh - 220px);
+            }
+
+            th,
+            td {
+                padding: 8px;
+                font-size: 13px;
+            }
+
+            .record-table input {
+                min-width: 80px;
+                padding: 8px;
+            }
+
+            .chip-group {
+                min-width: 120px;
+            }
+
+            .chip {
+                flex: 1 0 40%;
+                padding: 5px 8px;
+                font-size: 12px;
+            }
+
+            .toggle-btn {
+                padding: 8px 10px;
+                font-size: 12px;
+            }
+        }
     </style>
 </head>
 <body>

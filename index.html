@@ -450,7 +450,7 @@
             const classroom = DOM.classroom.value.trim();
             const items = buildBorrowItems();
 
-            if (!borrowerId || !borrowerName || !phone || !classroom || items.length === 0) {
+            if (!borrowerId || !borrowerName || !phone || !classroom) {
                 alert("資料填寫不完整，請檢查。 / Please complete all required fields.");
                 return;
             }

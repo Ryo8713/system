@@ -42,6 +42,7 @@
             border: none;
             cursor: pointer;
             font-weight: 600;
+            line-height: 1.2;
         }
 
         button:hover { filter: brightness(0.95); }
@@ -93,6 +94,34 @@
 
         .record-table input { width: 100%; min-width: 0; }
         .checkbox-cell { text-align: center; }
+        .action-cell {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: center;
+            justify-content: center;
+            height: 120px;
+        }
+        td.action-cell-wrap {
+            vertical-align: middle !important;
+            height: inherit;
+        }
+        .action-btn {
+            width: 100%;
+            min-height: 36px;
+            padding: 8px 10px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+        .action-btn.secondary {
+            background: #fff;
+            color: var(--ink);
+            border: 1px solid var(--border);
+        }
+        .action-btn.danger {
+            background: #9a2f2f;
+        }
         .auto-text { color: var(--muted); font-size: 14px; text-align: center; white-space: nowrap; }
         .record-row:nth-child(even) { background: #f4f2f2; }
         .record-row:nth-child(odd) { background: #ffffff; }
@@ -254,7 +283,11 @@
                     <td><input type="tel" id="phone"></td>
                     <td class="auto-text">AUTO</td>
                     <td class="auto-text">--</td>
-                    <td><button onclick="submitBorrow()">送出<br>Send</button></td>
+                    <td class="action-cell-wrap">
+                        <div class="action-cell">
+                            <button class="action-btn" onclick="submitBorrow()">送出<br>Send</button>
+                        </div>
+                    </td>
                 </tr>
             </tbody>
         </table>
@@ -547,7 +580,6 @@
                     row.appendChild(createTextCell(user.borrowerName || ''));
                     row.appendChild(createTextCell(user.phone || ''));
                     row.appendChild(createTextCell(formatDateTime(record.borrowTime), 'auto-text'));
-
                     row.appendChild(createTextCell(formatDateTime(record.returnTime), 'auto-text'));
                     row.appendChild(createActionCell(record, row));
                     table.appendChild(row);
@@ -650,23 +682,25 @@
 
         function createActionCell(record, row) {
             const td = document.createElement('td');
-            td.className = 'checkbox-cell';
+            td.className = 'checkbox-cell action-cell';
             if (record.returnTime) {
                 td.textContent = '已歸還 Returned';
                 return td;
             }
 
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.textContent = '歸還 Return';
-            button.addEventListener('click', () => returnRecord(record, button));
-            td.appendChild(button);
-
             const editButton = document.createElement('button');
             editButton.type = 'button';
+            editButton.className = 'action-btn secondary';
             editButton.textContent = '修改 Edit';
             editButton.addEventListener('click', () => enterEditMode(row, record));
             td.appendChild(editButton);
+
+            const returnButton = document.createElement('button');
+            returnButton.type = 'button';
+            returnButton.className = 'action-btn';
+            returnButton.textContent = '歸還 Return';
+            returnButton.addEventListener('click', () => returnRecord(record, returnButton));
+            td.appendChild(returnButton);
             return td;
         }
 
@@ -715,6 +749,7 @@
 
             const saveButton = document.createElement('button');
             saveButton.type = 'button';
+            saveButton.className = 'action-btn';
             saveButton.textContent = '儲存 Save';
             saveButton.addEventListener('click', () => {
                 submitRecordUpdate(record, row, {
@@ -726,11 +761,44 @@
 
             const cancelButton = document.createElement('button');
             cancelButton.type = 'button';
+            cancelButton.className = 'action-btn secondary';
             cancelButton.textContent = '取消 Cancel';
-            cancelButton.addEventListener('click', () => fetchOverviewRecords());
+            cancelButton.addEventListener('click', () => exitEditMode(row, record));
 
             actionCell.appendChild(saveButton);
             actionCell.appendChild(cancelButton);
+        }
+
+        function exitEditMode(row, record) {
+            if (!row) {
+                return;
+            }
+
+            let original = null;
+            try {
+                original = row.dataset.original ? JSON.parse(row.dataset.original) : null;
+            } catch (error) {
+                original = null;
+            }
+
+            const cells = row.querySelectorAll('td');
+            if (cells.length < 9 || !original) {
+                fetchOverviewRecords();
+                return;
+            }
+
+            cells[0].textContent = original.classroom || '';
+            cells[1].textContent = original.laptops || '';
+            cells[2].textContent = original.others || '';
+
+            const actionCell = cells[8];
+            actionCell.innerHTML = '';
+            const freshActionCell = createActionCell(record, row);
+            while (freshActionCell.firstChild) {
+                actionCell.appendChild(freshActionCell.firstChild);
+            }
+
+            row.dataset.editing = 'false';
         }
 
         async function submitRecordUpdate(record, row, payload, button) {

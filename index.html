@@ -310,7 +310,6 @@
             const container = DOM.pcGroup;
             const hiddenInput = DOM.selectedPcs;
             container.innerHTML = '';
-            let selected = [];
 
             for (let i = 1; i <= 12; i += 1) {
                 const chip = document.createElement('div');
@@ -318,13 +317,15 @@
                 chip.className = 'chip';
                 chip.textContent = value;
                 chip.addEventListener('click', () => {
-                    chip.classList.toggle('active');
-                    if (selected.includes(value)) {
-                        selected = selected.filter(item => item !== value);
+                    const selected = getSelectedPcs();
+                    const exists = selected.includes(value);
+                    if (exists) {
+                        chip.classList.remove('active');
+                        hiddenInput.value = JSON.stringify(selected.filter(item => item !== value));
                     } else {
-                        selected.push(value);
+                        chip.classList.add('active');
+                        hiddenInput.value = JSON.stringify([...selected, value]);
                     }
-                    hiddenInput.value = JSON.stringify(selected);
                 });
                 container.appendChild(chip);
             }
@@ -446,8 +447,7 @@
 
         function buildBorrowItems() {
             const items = [];
-            const selectedPcs = DOM.selectedPcs.value;
-            const pcs = selectedPcs ? JSON.parse(selectedPcs) : [];
+            const pcs = getSelectedPcs();
             pcs.forEach(pc => items.push(pc));
 
             if (DOM.itemAdapter.classList.contains('active')) {
@@ -473,6 +473,30 @@
                 .filter(Boolean);
         }
 
+        function parsePcItems(rawValue) {
+            if (!rawValue) {
+                return [];
+            }
+
+            return rawValue
+                .split(/[\s,，、]+/)
+                .map(item => item.trim().toUpperCase())
+                .filter(Boolean);
+        }
+
+        function getSelectedPcs() {
+            const selectedPcs = DOM.selectedPcs.value;
+            if (!selectedPcs) {
+                return [];
+            }
+            try {
+                const parsed = JSON.parse(selectedPcs);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (error) {
+                return [];
+            }
+        }
+
         function resetBorrowForm() {
             DOM.classroom.value = '';
             DOM.borrowerId.value = '';
@@ -484,7 +508,7 @@
             DOM.itemPointer.classList.remove('active');
             DOM.itemOther.classList.remove('active');
             DOM.selectedPcs.value = '';
-            document.querySelectorAll('#pcGroup .chip').forEach(chip => chip.classList.remove('active'));
+            renderPcOptions();
         }
 
         async function fetchOverviewRecords() {
@@ -525,7 +549,7 @@
                     row.appendChild(createTextCell(formatDateTime(record.borrowTime), 'auto-text'));
 
                     row.appendChild(createTextCell(formatDateTime(record.returnTime), 'auto-text'));
-                    row.appendChild(createActionCell(record));
+                    row.appendChild(createActionCell(record, row));
                     table.appendChild(row);
                 });
             } catch (error) {
@@ -624,7 +648,7 @@
             return td;
         }
 
-        function createActionCell(record) {
+        function createActionCell(record, row) {
             const td = document.createElement('td');
             td.className = 'checkbox-cell';
             if (record.returnTime) {
@@ -637,7 +661,118 @@
             button.textContent = '歸還 Return';
             button.addEventListener('click', () => returnRecord(record, button));
             td.appendChild(button);
+
+            const editButton = document.createElement('button');
+            editButton.type = 'button';
+            editButton.textContent = '修改 Edit';
+            editButton.addEventListener('click', () => enterEditMode(row, record));
+            td.appendChild(editButton);
             return td;
+        }
+
+        function enterEditMode(row, record) {
+            if (!row || row.dataset.editing === 'true') {
+                return;
+            }
+
+            const cells = row.querySelectorAll('td');
+            if (cells.length < 9) {
+                return;
+            }
+
+            const classroomCell = cells[0];
+            const laptopCell = cells[1];
+            const otherCell = cells[2];
+            row.dataset.editing = 'true';
+            row.dataset.original = JSON.stringify({
+                classroom: classroomCell.textContent,
+                laptops: laptopCell.textContent,
+                others: otherCell.textContent
+            });
+
+            const classroomInput = document.createElement('input');
+            classroomInput.type = 'text';
+            classroomInput.value = classroomCell.textContent;
+            classroomCell.textContent = '';
+            classroomCell.appendChild(classroomInput);
+
+            const laptopsInput = document.createElement('input');
+            laptopsInput.type = 'text';
+            laptopsInput.placeholder = 'PC1, PC2';
+            laptopsInput.value = laptopCell.textContent;
+            laptopCell.textContent = '';
+            laptopCell.appendChild(laptopsInput);
+
+            const othersInput = document.createElement('input');
+            othersInput.type = 'text';
+            othersInput.placeholder = '轉接線, 投影筆';
+            othersInput.value = otherCell.textContent;
+            otherCell.textContent = '';
+            otherCell.appendChild(othersInput);
+
+            const actionCell = cells[8];
+            actionCell.innerHTML = '';
+
+            const saveButton = document.createElement('button');
+            saveButton.type = 'button';
+            saveButton.textContent = '儲存 Save';
+            saveButton.addEventListener('click', () => {
+                submitRecordUpdate(record, row, {
+                    classroom: classroomInput.value.trim(),
+                    laptops: laptopsInput.value.trim(),
+                    others: othersInput.value.trim()
+                }, saveButton);
+            });
+
+            const cancelButton = document.createElement('button');
+            cancelButton.type = 'button';
+            cancelButton.textContent = '取消 Cancel';
+            cancelButton.addEventListener('click', () => fetchOverviewRecords());
+
+            actionCell.appendChild(saveButton);
+            actionCell.appendChild(cancelButton);
+        }
+
+        async function submitRecordUpdate(record, row, payload, button) {
+            if (!payload.classroom) {
+                alert('教室必填 / Classroom is required.');
+                return;
+            }
+
+            const laptopItems = parsePcItems(payload.laptops);
+            const otherItems = parseOtherItems(payload.others);
+            const items = [...laptopItems, ...otherItems].filter(Boolean);
+
+            if (items.length === 0) {
+                alert('請至少選擇一項器材 / Please include at least one item.');
+                return;
+            }
+
+            button.disabled = true;
+            setMessage('更新中... / Updating...');
+            try {
+                const response = await fetch(GAS_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'update',
+                        recordId: record.recordId,
+                        classroom: payload.classroom,
+                        items
+                    })
+                });
+                const result = await response.json();
+                if (result.result === 'success') {
+                    clearMessage();
+                    alert('更新成功 / Update completed');
+                    fetchOverviewRecords();
+                } else {
+                    button.disabled = false;
+                    setMessage(result.message || '更新失敗 / Update failed.');
+                }
+            } catch (error) {
+                button.disabled = false;
+                setMessage('更新失敗 / Update failed.');
+            }
         }
 
         function buildReturnConfirmMessage(record) {

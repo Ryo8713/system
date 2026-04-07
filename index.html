@@ -717,6 +717,9 @@
             const classroomCell = cells[0];
             const laptopCell = cells[1];
             const otherCell = cells[2];
+            const itemsArray = getItemsArray(record.items);
+            const laptopItems = getLaptopItems(itemsArray);
+            const otherItems = getOtherItems(itemsArray);
             row.dataset.editing = 'true';
             row.dataset.original = JSON.stringify({
                 classroom: classroomCell.textContent,
@@ -730,19 +733,15 @@
             classroomCell.textContent = '';
             classroomCell.appendChild(classroomInput);
 
-            const laptopsInput = document.createElement('input');
-            laptopsInput.type = 'text';
-            laptopsInput.placeholder = 'PC1, PC2';
-            laptopsInput.value = laptopCell.textContent;
             laptopCell.textContent = '';
-            laptopCell.appendChild(laptopsInput);
+            const editPcGroup = buildEditPcGroup(laptopItems);
+            laptopCell.appendChild(editPcGroup.container);
+            laptopCell.appendChild(editPcGroup.hiddenInput);
 
-            const othersInput = document.createElement('input');
-            othersInput.type = 'text';
-            othersInput.placeholder = '轉接線, 投影筆';
-            othersInput.value = otherCell.textContent;
             otherCell.textContent = '';
-            otherCell.appendChild(othersInput);
+            const editOtherGroup = buildEditOtherGroup(otherItems);
+            otherCell.appendChild(editOtherGroup.group);
+            otherCell.appendChild(editOtherGroup.otherInput);
 
             const actionCell = cells[8];
             actionCell.innerHTML = '';
@@ -752,10 +751,10 @@
             saveButton.className = 'action-btn';
             saveButton.textContent = '儲存 Save';
             saveButton.addEventListener('click', () => {
+                const items = buildEditItems(row);
                 submitRecordUpdate(record, row, {
                     classroom: classroomInput.value.trim(),
-                    laptops: laptopsInput.value.trim(),
-                    others: othersInput.value.trim()
+                    items
                 }, saveButton);
             });
 
@@ -801,20 +800,143 @@
             row.dataset.editing = 'false';
         }
 
+        function buildEditPcGroup(selectedItems) {
+            const container = document.createElement('div');
+            container.className = 'chip-group edit-pc-group';
+
+            const hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.className = 'edit-selected-pcs';
+            hiddenInput.value = JSON.stringify(selectedItems || []);
+
+            for (let i = 1; i <= 12; i += 1) {
+                const chip = document.createElement('div');
+                const value = `PC${i}`;
+                chip.className = 'chip';
+                chip.textContent = value;
+                if (selectedItems.includes(value)) {
+                    chip.classList.add('active');
+                }
+                chip.addEventListener('click', () => {
+                    const selected = getEditSelectedPcs(hiddenInput);
+                    const exists = selected.includes(value);
+                    if (exists) {
+                        chip.classList.remove('active');
+                        hiddenInput.value = JSON.stringify(selected.filter(item => item !== value));
+                    } else {
+                        chip.classList.add('active');
+                        hiddenInput.value = JSON.stringify([...selected, value]);
+                    }
+                });
+                container.appendChild(chip);
+            }
+
+            return { container, hiddenInput };
+        }
+
+        function buildEditOtherGroup(otherItems) {
+            const group = document.createElement('div');
+            group.className = 'item-group';
+
+            const adapterBtn = document.createElement('button');
+            adapterBtn.type = 'button';
+            adapterBtn.className = 'toggle-btn edit-item-adapter';
+            adapterBtn.innerHTML = '轉接線<br>Adapter';
+
+            const pointerBtn = document.createElement('button');
+            pointerBtn.type = 'button';
+            pointerBtn.className = 'toggle-btn edit-item-pointer';
+            pointerBtn.innerHTML = '投影筆<br>Pointer';
+
+            const otherBtn = document.createElement('button');
+            otherBtn.type = 'button';
+            otherBtn.className = 'toggle-btn edit-item-other';
+            otherBtn.innerHTML = '其他<br>Other';
+
+            group.appendChild(adapterBtn);
+            group.appendChild(pointerBtn);
+            group.appendChild(otherBtn);
+
+            const otherInput = document.createElement('input');
+            otherInput.type = 'text';
+            otherInput.className = 'item-input hidden edit-other-input';
+            otherInput.placeholder = 'e.g. 響鈴、麥克風';
+
+            const normalized = (otherItems || []).map(item => String(item).trim());
+            const hasAdapter = normalized.includes('轉接線');
+            const hasPointer = normalized.includes('投影筆');
+            const remaining = normalized.filter(item => item && item !== '轉接線' && item !== '投影筆');
+
+            if (hasAdapter) {
+                adapterBtn.classList.add('active');
+            }
+            if (hasPointer) {
+                pointerBtn.classList.add('active');
+            }
+            if (remaining.length > 0) {
+                otherBtn.classList.add('active');
+                otherInput.classList.remove('hidden');
+                otherInput.value = remaining.join('、');
+            }
+
+            adapterBtn.addEventListener('click', () => adapterBtn.classList.toggle('active'));
+            pointerBtn.addEventListener('click', () => pointerBtn.classList.toggle('active'));
+            otherBtn.addEventListener('click', () => {
+                otherBtn.classList.toggle('active');
+                otherInput.classList.toggle('hidden', !otherBtn.classList.contains('active'));
+                if (!otherBtn.classList.contains('active')) {
+                    otherInput.value = '';
+                }
+            });
+
+            return { group, otherInput };
+        }
+
+        function getEditSelectedPcs(hiddenInput) {
+            if (!hiddenInput || !hiddenInput.value) {
+                return [];
+            }
+            try {
+                const parsed = JSON.parse(hiddenInput.value);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (error) {
+                return [];
+            }
+        }
+
+        function buildEditItems(row) {
+            const items = [];
+            const hiddenInput = row.querySelector('.edit-selected-pcs');
+            const pcs = getEditSelectedPcs(hiddenInput);
+            pcs.forEach(pc => items.push(pc));
+
+            const adapterBtn = row.querySelector('.edit-item-adapter');
+            const pointerBtn = row.querySelector('.edit-item-pointer');
+            const otherBtn = row.querySelector('.edit-item-other');
+            const otherInput = row.querySelector('.edit-other-input');
+
+            if (adapterBtn && adapterBtn.classList.contains('active')) {
+                items.push('轉接線');
+            }
+            if (pointerBtn && pointerBtn.classList.contains('active')) {
+                items.push('投影筆');
+            }
+            if (otherBtn && otherBtn.classList.contains('active') && otherInput) {
+                const otherValue = otherInput.value.trim();
+                if (otherValue) {
+                    parseOtherItems(otherValue).forEach(item => items.push(item));
+                }
+            }
+
+            return items;
+        }
+
         async function submitRecordUpdate(record, row, payload, button) {
             if (!payload.classroom) {
                 alert('教室必填 / Classroom is required.');
                 return;
             }
-
-            const laptopItems = parsePcItems(payload.laptops);
-            const otherItems = parseOtherItems(payload.others);
-            const items = [...laptopItems, ...otherItems].filter(Boolean);
-
-            if (items.length === 0) {
-                alert('請至少選擇一項器材 / Please include at least one item.');
-                return;
-            }
+            const items = Array.isArray(payload.items) ? payload.items.filter(Boolean) : [];
 
             button.disabled = true;
             setMessage('更新中... / Updating...');

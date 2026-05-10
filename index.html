@@ -1022,7 +1022,7 @@
             const items = Array.isArray(payload.items) ? payload.items.filter(Boolean) : [];
 
             button.disabled = true;
-            setMessage('更新中... / Updating...');
+            showLoadingOverlay();
             try {
                 const response = await fetch(GAS_URL, {
                     method: 'POST',
@@ -1045,6 +1045,8 @@
             } catch (error) {
                 button.disabled = false;
                 setMessage('更新失敗 / Update failed.');
+            } finally {
+                hideLoadingOverlay();
             }
         }
 

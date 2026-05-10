@@ -193,6 +193,52 @@
 
         .hidden { display: none; }
 
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .loading-overlay.hidden {
+            display: none;
+        }
+
+        .loading-spinner {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-spinner p {
+            margin: 0;
+            color: var(--ink);
+            font-weight: 600;
+            font-size: 16px;
+        }
+
         @media (max-width: 1024px) {
             body {
                 padding: 12px;
@@ -285,7 +331,7 @@
                     <td class="auto-text">--</td>
                     <td class="action-cell-wrap">
                         <div class="action-cell">
-                            <button class="action-btn" onclick="submitBorrow()">送出<br>Send</button>
+                            <button class="action-btn" id="submitBorrowBtn" onclick="submitBorrow()">送出<br>Send</button>
                         </div>
                     </td>
                 </tr>
@@ -298,12 +344,36 @@
         <button onclick="clearAllRecords()">清除所有紀錄 (Clear All Records)</button>
     </div>
 
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>處理中... / Processing...</p>
+        </div>
+    </div>
+
     <script>
         const GAS_URL = "https://script.google.com/macros/s/AKfycbxaRR-acYIle82Ryu1GpDX-DIRAF762xg8dJK0QhDyanXtumJv4-Z21r3Ipky1Zn1sb/exec"; // 👈 貼上你的 GAS 網址
 
         const DOM = {};
         let usersCache = [];
         let usersById = {};
+        let isSubmitting = false;
+
+        function showLoadingOverlay() {
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay) {
+                overlay.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function hideLoadingOverlay() {
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay) {
+                overlay.classList.add('hidden');
+                document.body.style.overflow = '';
+            }
+        }
 
         window.onload = init;
 
@@ -330,6 +400,7 @@
             DOM.message = document.getElementById('message');
             DOM.recordsTable = document.getElementById('recordsTable');
             DOM.inputRow = document.getElementById('inputRow');
+            DOM.submitBorrowBtn = document.getElementById('submitBorrowBtn');
         }
 
         function wireBorrowerSearch() {
@@ -444,6 +515,9 @@
         }
 
         async function submitBorrow() {
+            if (isSubmitting) {
+                return;
+            }
             const borrowerId = DOM.borrowerId.value.trim();
             const borrowerName = DOM.borrowerName.value.trim();
             const phone = DOM.phone.value.trim();
@@ -455,7 +529,8 @@
                 return;
             }
 
-            setMessage("處理中... / Processing...");
+            isSubmitting = true;
+            showLoadingOverlay();
 
             try {
                 const response = await fetch(GAS_URL, {
@@ -465,16 +540,24 @@
                 const result = await response.json();
 
                 if (result.result === 'success') {
+                    hideLoadingOverlay();
                     alert("提交成功！ / Submission successful!");
                     clearMessage();
                     await fetchUsers();
                     fetchOverviewRecords();
                     resetBorrowForm();
                 } else {
-                    setMessage(result.message || "提交失敗。 / Submission failed.");
+                    hideLoadingOverlay();
+                    setMessage(result.message);
                 }
             } catch (error) {
+                hideLoadingOverlay();
                 setMessage("提交失敗。 / Submission failed.");
+            } finally {
+                isSubmitting = false;
+                if (DOM.submitBorrowBtn) {
+                    DOM.submitBorrowBtn.disabled = false;
+                }
             }
         }
 
@@ -985,7 +1068,7 @@
                 return;
             }
             button.disabled = true;
-            setMessage("提交中... / Submitting...");
+            showLoadingOverlay();
             try {
                 const response = await fetch(GAS_URL, {
                     method: 'POST',
@@ -993,16 +1076,18 @@
                 });
                 const result = await response.json();
                 if (result.result === 'success') {
-                    clearMessage();
+                    hideLoadingOverlay();
                     alert('歸還成功 / Return completed');
                     fetchOverviewRecords();
                 } else {
-                    button.disabled = false;
+                    hideLoadingOverlay();
                     setMessage(result.message || "提交失敗。 / Submission failed.");
                 }
             } catch (error) {
-                button.disabled = false;
+                hideLoadingOverlay();
                 setMessage("提交失敗。 / Submission failed.");
+            } finally {
+                button.disabled = false;
             }
         }
 
@@ -1013,6 +1098,7 @@
         function clearMessage() {
             DOM.message.textContent = '';
         }
+
     </script>
 </body>
 </html>

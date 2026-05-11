@@ -359,6 +359,13 @@
         let usersById = {};
         let isSubmitting = false;
 
+        function generateRequestId() {
+            if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                return window.crypto.randomUUID();
+            }
+            return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        }
+
         function showLoadingOverlay() {
             const overlay = document.getElementById('loadingOverlay');
             if (overlay) {
@@ -530,12 +537,16 @@
             }
 
             isSubmitting = true;
+            if (DOM.submitBorrowBtn) {
+                DOM.submitBorrowBtn.disabled = true;
+            }
             showLoadingOverlay();
+            const requestId = generateRequestId();
 
             try {
                 const response = await fetch(GAS_URL, {
                     method: 'POST',
-                    body: JSON.stringify({ action: 'borrow', borrowerId, borrowerName, phone, classroom, items, note: '' })
+                    body: JSON.stringify({ action: 'borrow', requestId, borrowerId, borrowerName, phone, classroom, items, note: '' })
                 });
                 const result = await response.json();
 

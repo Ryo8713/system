@@ -354,9 +354,12 @@
     <script>
         const GAS_URL = "https://script.google.com/macros/s/AKfycbxaRR-acYIle82Ryu1GpDX-DIRAF762xg8dJK0QhDyanXtumJv4-Z21r3Ipky1Zn1sb/exec"; // 👈 貼上你的 GAS 網址
 
+        const USERS_CACHE_TTL_MS = 10 * 60 * 1000;
+
         const DOM = {};
         let usersCache = [];
         let usersById = {};
+        let usersCacheFetchedAt = 0;
         let isSubmitting = false;
 
         function generateRequestId() {
@@ -455,21 +458,42 @@
             DOM.otherItem.classList.toggle('hidden', !DOM.itemOther.classList.contains('active'));
         }
 
-        async function fetchUsers() {
+        function isUsersCacheFresh() {
+            return usersCacheFetchedAt > 0 && (Date.now() - usersCacheFetchedAt) < USERS_CACHE_TTL_MS;
+        }
+
+        function setUsersCache(users) {
+            usersCache = Array.isArray(users) ? users : [];
+            usersById = {};
+            usersCache.forEach(user => {
+                if (user.borrowerId) {
+                    usersById[String(user.borrowerId)] = user;
+                }
+            });
+            usersCacheFetchedAt = Date.now();
+        }
+
+        function clearUsersCache() {
+            usersCache = [];
+            usersById = {};
+            usersCacheFetchedAt = 0;
+        }
+
+        async function fetchUsers(options = {}) {
+            const force = options.force === true;
+            if (!force && isUsersCacheFresh()) {
+                return usersCache;
+            }
+
             try {
                 const response = await fetch(`${GAS_URL}?action=getUsers`);
                 const users = await response.json();
-                usersCache = Array.isArray(users) ? users : [];
-                usersById = {};
-                usersCache.forEach(user => {
-                    if (user.borrowerId) {
-                        usersById[String(user.borrowerId)] = user;
-                    }
-                });
+                setUsersCache(users);
+                return usersCache;
             } catch (error) {
                 console.error("載入使用者失敗:", error);
-                usersCache = [];
-                usersById = {};
+                clearUsersCache();
+                return [];
             }
         }
 
@@ -548,22 +572,25 @@
                     method: 'POST',
                     body: JSON.stringify({ action: 'borrow', requestId, borrowerId, borrowerName, phone, classroom, items, note: '' })
                 });
-                const result = await response.json();
+                const result = await readJsonResponse(response);
 
-                if (result.result === 'success') {
+                if (result && result.result === 'success') {
                     hideLoadingOverlay();
                     alert("提交成功！ / Submission successful!");
                     clearMessage();
-                    await fetchUsers();
+                    if (result.userCreated) {
+                        await fetchUsers({ force: true });
+                    }
                     fetchOverviewRecords();
                     resetBorrowForm();
                 } else {
                     hideLoadingOverlay();
-                    setMessage(result.message);
+                    setMessage(result && result.message ? result.message : '提交失敗：未知回應 / Submission failed: unknown response.');
                 }
             } catch (error) {
+                console.error('submitBorrow failed:', error);
                 hideLoadingOverlay();
-                setMessage("提交失敗。 / Submission failed.");
+                setMessage(`提交失敗: ${formatRequestError(error)}`);
             } finally {
                 isSubmitting = false;
                 if (DOM.submitBorrowBtn) {
@@ -697,17 +724,17 @@
                     method: 'POST',
                     body: JSON.stringify({ action: 'clearAll', password })
                 });
-                const result = await response.json();
-                if (result.result === 'success') {
+                const result = await readJsonResponse(response);
+                if (result && result.result === 'success') {
                     clearMessage();
                     alert('已清除所有資料 / All data cleared');
-                    await fetchUsers();
                     fetchOverviewRecords();
                 } else {
-                    setMessage(result.message || '清除失敗。 / Clear failed.');
+                    setMessage((result && result.message) || '清除失敗。 / Clear failed.');
                 }
             } catch (error) {
-                setMessage('清除失敗。 / Clear failed.');
+                console.error('clearAllRecords failed:', error);
+                setMessage(`清除失敗: ${formatRequestError(error)}`);
             }
         }
 
@@ -1044,18 +1071,19 @@
                         items
                     })
                 });
-                const result = await response.json();
-                if (result.result === 'success') {
+                const result = await readJsonResponse(response);
+                if (result && result.result === 'success') {
                     clearMessage();
                     alert('更新成功 / Update completed');
                     fetchOverviewRecords();
                 } else {
                     button.disabled = false;
-                    setMessage(result.message || '更新失敗 / Update failed.');
+                    setMessage((result && result.message) || '更新失敗 / Update failed.');
                 }
             } catch (error) {
+                console.error('submitRecordUpdate failed:', error);
                 button.disabled = false;
-                setMessage('更新失敗 / Update failed.');
+                setMessage(`更新失敗: ${formatRequestError(error)}`);
             } finally {
                 hideLoadingOverlay();
             }
@@ -1087,18 +1115,19 @@
                     method: 'POST',
                     body: JSON.stringify({ action: 'return', recordIds: [record.recordId] })
                 });
-                const result = await response.json();
-                if (result.result === 'success') {
+                const result = await readJsonResponse(response);
+                if (result && result.result === 'success') {
                     hideLoadingOverlay();
                     alert('歸還成功 / Return completed');
                     fetchOverviewRecords();
                 } else {
                     hideLoadingOverlay();
-                    setMessage(result.message || "提交失敗。 / Submission failed.");
+                    setMessage((result && result.message) || '歸還失敗：未知回應 / Return failed: unknown response.');
                 }
             } catch (error) {
+                console.error('returnRecord failed:', error);
                 hideLoadingOverlay();
-                setMessage("提交失敗。 / Submission failed.");
+                setMessage(`歸還失敗: ${formatRequestError(error)}`);
             } finally {
                 button.disabled = false;
             }
@@ -1110,6 +1139,32 @@
 
         function clearMessage() {
             DOM.message.textContent = '';
+        }
+
+        function formatRequestError(error) {
+            if (!error) {
+                return 'unknown error';
+            }
+            if (typeof error === 'string') {
+                return error;
+            }
+            return error.message || String(error);
+        }
+
+        async function readJsonResponse(response) {
+            const rawText = await response.text();
+            let result;
+            try {
+                result = rawText ? JSON.parse(rawText) : null;
+            } catch (parseError) {
+                const preview = rawText.replace(/\s+/g, ' ').slice(0, 200);
+                throw new Error(`Invalid JSON (HTTP ${response.status}): ${preview || '(empty body)'}`);
+            }
+            if (!response.ok) {
+                const detail = (result && result.message) || rawText.replace(/\s+/g, ' ').slice(0, 200) || '(empty body)';
+                throw new Error(`HTTP ${response.status}: ${detail}`);
+            }
+            return result;
         }
 
     </script>
